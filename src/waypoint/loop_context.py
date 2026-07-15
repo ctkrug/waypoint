@@ -7,13 +7,14 @@ new index after each completed iteration.
 """
 
 from pathlib import Path
-from typing import Any, Iterator, Sequence, Union
+from typing import Any, Callable, Iterator, Optional, Sequence, Union
 
 from . import storage
 from .exceptions import NotResumableError
 from .sequence import Seq
 
 Resumable = Union[Sequence[Any], Seq]
+ProgressCallback = Callable[[int, int], None]
 
 
 def _coerce_sequence(iterable: Any, loop_source: str) -> Sequence[Any]:
@@ -32,8 +33,10 @@ def _coerce_sequence(iterable: Any, loop_source: str) -> Sequence[Any]:
 class _LoopContext:
     """Tracks and persists progress for one resumable loop invocation."""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, on_progress: Optional[ProgressCallback] = None):
         self._path = path
+        self._on_progress = on_progress
+        self._total = 0
         data = storage.read_checkpoint(path)
         self._resume_index = data["index"] if data else 0
         self._index = self._resume_index
@@ -44,6 +47,7 @@ class _LoopContext:
         sequence = _coerce_sequence(iterable, loop_source)
         start = min(self._resume_index, len(sequence))
         self._index = start
+        self._total = len(sequence)
         return iter(sequence[start:])
 
     def track_enumerate(self, iterable: Any, loop_source: str) -> Iterator[Any]:
@@ -55,12 +59,15 @@ class _LoopContext:
         sequence = _coerce_sequence(iterable, loop_source)
         start = min(self._resume_index, len(sequence))
         self._index = start
+        self._total = len(sequence)
         return enumerate(iter(sequence[start:]), start=start)
 
     def advance(self) -> None:
         """Record that one more iteration completed successfully."""
         self._index += 1
         storage.write_checkpoint(self._path, {"index": self._index})
+        if self._on_progress is not None:
+            self._on_progress(self._index, self._total)
 
     def cleanup(self) -> None:
         """Discard the checkpoint after a fully successful run."""
