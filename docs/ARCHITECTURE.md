@@ -15,7 +15,8 @@ src/waypoint/
   storage.py           # atomic on-disk checkpoint read/write/delete
   sequence.py           # Seq / seq() -- wraps arbitrary iterables
   exceptions.py          # NotResumableError
-  __main__.py             # `python -m waypoint` CLI (not yet implemented)
+  cli.py                  # status()/clear() -- listing/deleting checkpoints
+  __main__.py               # `python -m waypoint status|clear` entry point
 ```
 
 ## How a decorated call flows
@@ -24,12 +25,18 @@ src/waypoint/
    parses `func`'s source with `ast.parse`, finds its single top-level
    `for item in <sequence>:` statement, and rewrites the loop in place:
    - `stmt.iter` becomes `__waypoint_ctx__.track(<original iter expr>, "<loop source>")`
+     for a bare `for item in <sequence>:`, or
+     `__waypoint_ctx__.track_enumerate(<inner iter expr>, "<loop source>")`
+     for `for i, item in enumerate(<sequence>):` (the tuple target itself
+     is left alone; only the iterated expression is rewritten).
    - a `__waypoint_ctx__.advance()` call is appended as the loop body's
      last statement.
 
-   If no top-level `for` loop exists, or its target isn't a single name
-   (e.g. `for i, item in enumerate(...)`), this raises `NotResumableError`
-   immediately — a decoration-time, not call-time, failure.
+   If no top-level `for` loop exists, or its target is a tuple unpack
+   other than the `enumerate(...)` pair above, this raises
+   `NotResumableError` immediately — a decoration-time, not call-time,
+   failure. (`_resolve_track_call` in `ast_transform.py` is where this
+   shape-matching happens.)
 
    The rewritten `FunctionDef` is nested inside a synthetic
    `__waypoint_factory__(ctx, *freevars)` function and `compile()`d once.
@@ -52,13 +59,25 @@ src/waypoint/
    - `track(iterable, loop_source)` validates the iterable is a
      `list`/`tuple`/`range`/`Seq` (raising `NotResumableError` naming the
      loop otherwise), slices it from the last persisted index, and
-     returns an iterator over the remainder.
+     returns an iterator over the remainder. `track_enumerate(...)` does
+     the same but returns `(index, item)` pairs where `index` is the
+     item's true position in the original sequence, so resuming doesn't
+     reset it to 0.
    - `advance()` runs after each iteration's body completes — not on
      exception, not on `continue` — persisting `{"index": n}` via
      `storage.write_checkpoint` (temp file + `os.replace`, so a hard kill
-     mid-write never corrupts the checkpoint).
+     mid-write never corrupts the checkpoint), then invokes the
+     decorator's optional `on_progress(index, total)` callback if one
+     was passed to `@checkpoint`.
    - If the call returns normally, `wrapper` calls `ctx.cleanup()`,
      deleting the checkpoint file so the next call starts fresh.
+
+4. **Inspecting checkpoints** (`cli.py` / `__main__.py`): `python -m
+   waypoint status [--dir X]` lists every `*.json` file under the
+   checkpoint directory with its stored index and mtime;
+   `python -m waypoint clear <key> [--dir X]` deletes one. Both read the
+   same `storage.py` functions the decorator uses, so they never drift
+   from the on-disk format.
 
 This is why a killed run's in-flight item gets *retried* on rerun rather
 than skipped: `advance()` only ever moves the index past an iteration
@@ -68,8 +87,8 @@ that fully completed.
 
 - One resumable loop per function: only the first top-level `for` is
   rewritten.
-- Loop target must be a single name, not a tuple unpack (`enumerate()`
-  support is Epic 3.1, not yet built).
+- Loop target must be a single name or an `enumerate(...)` pair; other
+  tuple unpacking (`for k, v in d.items():`) isn't supported.
 - `continue` inside the loop body skips the appended `advance()` call
   too, so that item is retried on the next run.
 - The decorated function must have real, `inspect.getsource`-readable
