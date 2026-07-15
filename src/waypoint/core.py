@@ -9,7 +9,8 @@ over. See docs/VISION.md for the full design.
 
 import functools
 import hashlib
-from typing import Any, Callable, Dict, Tuple, TypeVar, cast
+from pathlib import Path
+from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, Union, cast
 
 from . import storage
 from .ast_transform import build_factory
@@ -31,21 +32,36 @@ def _checkpoint_key(func: Callable[..., Any], args: Tuple[Any, ...], kwargs: Dic
     return f"{qualname}-{digest}"
 
 
-def checkpoint(func: F) -> F:
+def checkpoint(
+    func: Optional[F] = None,
+    *,
+    dir: Optional[Union[str, Path]] = None,
+    key: Optional[str] = None,
+) -> Any:
     """Make a function's single top-level for-loop resumable.
 
-    Progress persists to ``.waypoint/<key>.json``, keyed by the function
-    and its call arguments. Killing the process mid-loop and rerunning
-    with the same arguments resumes right after the last completed
-    iteration. On a normal return (no exception), the checkpoint is
-    deleted so the next call starts fresh.
+    Progress persists to ``.waypoint/<key>.json`` by default, keyed by the
+    function and its call arguments. Killing the process mid-loop and
+    rerunning with the same arguments resumes right after the last
+    completed iteration. On a normal return (no exception), the checkpoint
+    is deleted so the next call starts fresh.
+
+    ``dir`` overrides the checkpoint directory (default ``.waypoint``).
+    ``key`` overrides the derived checkpoint key with a fixed name, useful
+    when call arguments aren't suitable for hashing (e.g. open file
+    handles) or when several distinct call shapes should share one
+    checkpoint namespace.
     """
+    if func is None:
+        return functools.partial(checkpoint, dir=dir, key=key)
+
     factory = build_factory(func)
+    directory = Path(dir) if dir is not None else storage.DEFAULT_CHECKPOINT_DIR
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        key = _checkpoint_key(func, args, kwargs)
-        path = storage.checkpoint_path(key)
+        checkpoint_key = key if key is not None else _checkpoint_key(func, args, kwargs)
+        path = storage.checkpoint_path(checkpoint_key, directory)
         ctx = _LoopContext(path)
         transformed = factory(ctx)
         result = transformed(*args, **kwargs)
