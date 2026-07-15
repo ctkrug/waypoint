@@ -1,5 +1,7 @@
 """End-to-end coverage of the wow moment: kill mid-loop, rerun, resume."""
 
+import json
+
 import pytest
 
 from waypoint import NotResumableError, checkpoint, seq
@@ -250,6 +252,48 @@ def test_break_exits_the_loop_and_still_cleans_up_the_checkpoint(tmp_path, monke
     # successful completion.
     checkpoint_dir = tmp_path / DEFAULT_CHECKPOINT_DIR
     assert list(checkpoint_dir.glob("*.json")) == []
+
+
+def test_continue_does_not_let_the_checkpoint_skip_past_the_continued_item(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    processed = []
+    attempt_2 = {"count": 0}
+    attempt_4 = {"count": 0}
+
+    @checkpoint
+    def process(items):
+        for item in items:
+            if item == 2:
+                if attempt_2["count"] == 0:
+                    attempt_2["count"] += 1
+                    raise _Interrupted()
+                continue  # permanently skipped from here on
+            if item == 4 and attempt_4["count"] == 0:
+                attempt_4["count"] += 1
+                raise _Interrupted()
+            processed.append(item)
+
+    items = [1, 2, 3, 4, 5]
+
+    with pytest.raises(_Interrupted):
+        process(items)  # fails on item 2
+    assert processed == [1]
+
+    with pytest.raises(_Interrupted):
+        process(items)  # item 2 now continues; item 3 completes; item 4 fails
+    assert processed == [1, 3]
+
+    checkpoint_dir = tmp_path / DEFAULT_CHECKPOINT_DIR
+    checkpoint_file = next(checkpoint_dir.glob("*.json"))
+    # Item 3 completed in the run above, but item 2 (an earlier position)
+    # never did -- the checkpoint must stay at index 1, not silently
+    # advance to 2 and claim item 2 is done when it was only skipped.
+    assert json.loads(checkpoint_file.read_text()) == {"index": 1}
+
+    process(items)  # completes: item 2 skips, items 3-5 all run
+    assert processed == [1, 3, 3, 4, 5]
 
 
 def test_resuming_a_checkpoint_already_at_full_completion_self_heals(tmp_path, monkeypatch):
