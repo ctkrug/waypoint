@@ -79,6 +79,18 @@ def process_all(items):
 when call arguments aren't hashable/reprable in a stable way, or when
 you want several differently-shaped calls to share one checkpoint.
 
+### Progress reporting
+
+```python
+@checkpoint(on_progress=lambda index, total: print(f"{index}/{total}"))
+def process_all(items):
+    for item in items:
+        do_something_slow(item)
+```
+
+`on_progress(index, total)` fires after each completed iteration.
+Omitting it costs nothing extra.
+
 ### Known v1 limitations
 
 - Only the function's first top-level `for` loop is made resumable;
