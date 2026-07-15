@@ -71,3 +71,26 @@ def test_track_clips_stale_resume_index_to_sequence_length(tmp_path):
     write_checkpoint(path, {"index": 999})
     ctx = _LoopContext(path)
     assert list(ctx.track([1, 2, 3], "for x in y:")) == []
+
+
+def test_track_enumerate_yields_index_item_pairs_on_fresh_checkpoint(tmp_path):
+    ctx = _LoopContext(tmp_path / "job.json")
+    assert list(ctx.track_enumerate(["a", "b", "c"], "for i, x in y:")) == [
+        (0, "a"),
+        (1, "b"),
+        (2, "c"),
+    ]
+
+
+def test_track_enumerate_resumes_with_true_original_index(tmp_path):
+    path = tmp_path / "job.json"
+    ctx = _LoopContext(path)
+    for _ in ctx.track_enumerate(["a", "b", "c"], "for i, x in y:"):
+        ctx.advance()
+        break  # only the first pair "completes"
+
+    resumed = _LoopContext(path)
+    assert list(resumed.track_enumerate(["a", "b", "c"], "for i, x in y:")) == [
+        (1, "b"),
+        (2, "c"),
+    ]
