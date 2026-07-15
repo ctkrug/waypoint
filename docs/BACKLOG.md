@@ -36,13 +36,13 @@ moment — they land first, before any ergonomics or polish work.
 
 ## Epic 2 — Ergonomics & configuration
 
-- [ ] **2.1 `waypoint.seq()` wrapper for arbitrary iterables**
+- [x] **2.1 `waypoint.seq()` wrapper for arbitrary iterables**
   - `waypoint.seq(some_generator())` materializes it to a list once
     and is accepted by an `@checkpoint`-decorated loop.
   - A documented example shows converting a non-resumable generator
     loop into a resumable one with `waypoint.seq(...)`.
 
-- [ ] **2.2 Configurable checkpoint directory and key namespace**
+- [x] **2.2 Configurable checkpoint directory and key namespace**
   - `@checkpoint(dir=".state", key="job-42")` writes to
     `.state/job-42.json` instead of the default `.waypoint/` location.
   - Two decorated functions with distinct explicit keys never collide,
@@ -70,7 +70,7 @@ moment — they land first, before any ergonomics or polish work.
   - Omitting `on_progress` has zero behavior change and zero added
     overhead versus not passing it.
 
-- [ ] **3.3 Exception-safe partial-iteration handling**
+- [x] **3.3 Exception-safe partial-iteration handling**
   - If the loop body raises mid-iteration, the checkpoint records the
     last *completed* index, not the failed one, so a rerun retries the
     failed item rather than skipping it.
