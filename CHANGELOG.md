@@ -24,3 +24,22 @@ and [Semantic Versioning](https://semver.org/).
 - `python -m waypoint status|clear`: list stored checkpoints (key,
   progress index, last-modified time) or delete one by key.
 - Initial project scaffold: package layout, CI, and planning docs.
+
+### Fixed
+
+- A checkpoint file that's invalid JSON, missing its `index` key, or has
+  a negative/non-integer index (hand-edited, truncated, or written by an
+  incompatible version) now raises a clear `NotResumableError` instead
+  of crashing with a raw `JSONDecodeError`/`KeyError`/`TypeError` -- or,
+  worse, a negative index silently replaying the wrong slice of the
+  sequence.
+- `python -m waypoint status` no longer crashes if one checkpoint file
+  in the directory is corrupt; it now shows that entry as unreadable and
+  keeps listing the rest.
+- A loop body that `continue`s past the tracked item could desync the
+  checkpoint from the sequence's true position: a later item completing
+  in the same run would get checkpointed at an index that silently
+  claimed the skipped item was done too, permanently dropping it (and
+  duplicating later items) on the next run. `advance()` now only
+  persists progress that's contiguous with what's already confirmed
+  done, so a skipped item is always retried instead of lost.
