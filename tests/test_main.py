@@ -32,3 +32,21 @@ def test_main_requires_a_subcommand():
         assert exc.code != 0
     else:
         raise AssertionError("expected argparse to exit for a missing subcommand")
+
+
+def test_main_clear_requires_a_key_argument():
+    try:
+        main(["clear"])
+    except SystemExit as exc:
+        assert exc.code != 0
+    else:
+        raise AssertionError("expected argparse to exit for a missing key")
+
+
+def test_main_rejects_an_unknown_subcommand():
+    try:
+        main(["frobnicate"])
+    except SystemExit as exc:
+        assert exc.code != 0
+    else:
+        raise AssertionError("expected argparse to exit for an unknown subcommand")
