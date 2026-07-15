@@ -57,7 +57,7 @@ moment — they land first, before any ergonomics or polish work.
 
 ## Epic 3 — Robustness & real-world loop shapes
 
-- [ ] **3.1 Support `enumerate()`-wrapped loops**
+- [x] **3.1 Support `enumerate()`-wrapped loops**
   - A loop written as `for i, item in enumerate(items):` resumes
     correctly, with `i` reflecting the true original index after
     resume.
