@@ -2,7 +2,8 @@
 
 from .core import checkpoint
 from .exceptions import NotResumableError
+from .sequence import Seq, seq
 
 __version__ = "0.1.0"
 
-__all__ = ["checkpoint", "NotResumableError", "__version__"]
+__all__ = ["checkpoint", "NotResumableError", "Seq", "seq", "__version__"]
