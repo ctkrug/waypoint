@@ -1,13 +1,19 @@
 """The @checkpoint decorator.
 
-This module currently ships the checkpoint-key derivation used to keep
-per-call progress isolated. The resumable loop engine (AST-based iterable
-rewriting + index persistence) lands next in Epic 1 of docs/BACKLOG.md.
+Applying @checkpoint to a function whose body is a single top-level
+'for item in <sequence>:' loop makes that loop resumable: progress is
+persisted to disk after each completed iteration, and a rerun with the
+same arguments picks up where the last run left off instead of starting
+over. See docs/VISION.md for the full design.
 """
 
 import functools
 import hashlib
 from typing import Any, Callable, Dict, Tuple, TypeVar, cast
+
+from . import storage
+from .ast_transform import build_factory
+from .loop_context import _LoopContext
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -26,10 +32,24 @@ def _checkpoint_key(func: Callable[..., Any], args: Tuple[Any, ...], kwargs: Dic
 
 
 def checkpoint(func: F) -> F:
-    """Mark a function's loop as resumable (placeholder implementation)."""
+    """Make a function's single top-level for-loop resumable.
+
+    Progress persists to ``.waypoint/<key>.json``, keyed by the function
+    and its call arguments. Killing the process mid-loop and rerunning
+    with the same arguments resumes right after the last completed
+    iteration. On a normal return (no exception), the checkpoint is
+    deleted so the next call starts fresh.
+    """
+    factory = build_factory(func)
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        return func(*args, **kwargs)
+        key = _checkpoint_key(func, args, kwargs)
+        path = storage.checkpoint_path(key)
+        ctx = _LoopContext(path)
+        transformed = factory(ctx)
+        result = transformed(*args, **kwargs)
+        ctx.cleanup()
+        return result
 
     return cast(F, wrapper)
