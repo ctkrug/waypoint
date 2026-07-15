@@ -11,7 +11,7 @@ helper functions/variables from its enclosing scope keep working.
 import ast
 import inspect
 import textwrap
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Tuple
 
 from .exceptions import NotResumableError
 
@@ -40,26 +40,55 @@ def _parse_function_def(func: Callable[..., Any]) -> ast.FunctionDef:
     return func_def
 
 
+def _is_enumerate_call(node: ast.expr) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "enumerate"
+        and len(node.args) == 1
+        and not node.keywords
+    )
+
+
+def _resolve_track_call(stmt: ast.For, func_name: str) -> Tuple[str, ast.expr]:
+    """Return the (``_LoopContext`` method name, tracked expression) for
+    this loop's target/iterable shape, or raise if the shape isn't
+    supported (v1: a bare name, or an ``enumerate(...)`` pair)."""
+    if isinstance(stmt.target, ast.Name):
+        return "track", stmt.iter
+
+    if (
+        isinstance(stmt.target, ast.Tuple)
+        and len(stmt.target.elts) == 2
+        and all(isinstance(elt, ast.Name) for elt in stmt.target.elts)
+        and _is_enumerate_call(stmt.iter)
+    ):
+        enumerate_call = stmt.iter
+        assert isinstance(enumerate_call, ast.Call)
+        return "track_enumerate", enumerate_call.args[0]
+
+    raise NotResumableError(
+        f"@checkpoint on '{func_name}' found a for-loop with an "
+        "unpacking target (e.g. 'for i, item in ...'); v1 only "
+        "supports a single loop variable ('for item in <sequence>:') "
+        "or 'for i, item in enumerate(<sequence>):'."
+    )
+
+
 def _rewrite_loop_in_place(func_def: ast.FunctionDef) -> None:
     for stmt in func_def.body:
         if not isinstance(stmt, ast.For):
             continue
-        if not isinstance(stmt.target, ast.Name):
-            raise NotResumableError(
-                f"@checkpoint on '{func_def.name}' found a for-loop with an "
-                "unpacking target (e.g. 'for i, item in ...'); v1 only "
-                "supports a single loop variable ('for item in <sequence>:')."
-            )
 
         loop_source = ast.unparse(stmt).splitlines()[0]
-        original_iter = stmt.iter
+        method_name, tracked_expr = _resolve_track_call(stmt, func_def.name)
         stmt.iter = ast.Call(
             func=ast.Attribute(
                 value=ast.Name(id=_CTX_NAME, ctx=ast.Load()),
-                attr="track",
+                attr=method_name,
                 ctx=ast.Load(),
             ),
-            args=[original_iter, ast.Constant(value=loop_source)],
+            args=[tracked_expr, ast.Constant(value=loop_source)],
             keywords=[],
         )
         stmt.body.append(

@@ -50,8 +50,8 @@ def test_build_factory_raises_when_no_top_level_loop():
         build_factory(_no_loop)
 
 
-def _tuple_target_loop(items):
-    for i, item in enumerate(items):
+def _tuple_target_loop(pairs):
+    for key, value in pairs:
         pass
 
 
