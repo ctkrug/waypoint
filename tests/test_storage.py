@@ -1,3 +1,4 @@
+import json
 import os
 
 import pytest
@@ -23,6 +24,17 @@ def test_checkpoint_path_accepts_custom_directory(tmp_path):
 
 def test_read_checkpoint_returns_none_when_missing(tmp_path):
     assert read_checkpoint(tmp_path / "absent.json") is None
+
+
+def test_read_checkpoint_propagates_invalid_json(tmp_path):
+    path = tmp_path / "job.json"
+    path.write_text("{not valid json", encoding="utf-8")
+
+    # storage.py is deliberately low-level here: it neither swallows nor
+    # reinterprets a malformed file, leaving callers (_LoopContext, the
+    # CLI) free to decide what "corrupt" should mean for their context.
+    with pytest.raises(json.JSONDecodeError):
+        read_checkpoint(path)
 
 
 def test_write_then_read_round_trips_data(tmp_path):
