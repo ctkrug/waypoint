@@ -7,11 +7,16 @@ from waypoint.exceptions import NotResumableError
 class _RecordingCtx:
     def __init__(self):
         self.tracked = []
+        self.tracked_enumerate = []
         self.advanced = 0
 
     def track(self, iterable, source):
         self.tracked.append((iterable, source))
         return iter(iterable)
+
+    def track_enumerate(self, iterable, source):
+        self.tracked_enumerate.append((iterable, source))
+        return enumerate(iterable)
 
     def advance(self):
         self.advanced += 1
@@ -39,6 +44,23 @@ def test_build_factory_leaves_loop_body_untouched_on_empty_input():
 
     assert transformed([]) == []
     assert ctx.advanced == 0
+
+
+def _process_enumerate(items):
+    seen = []
+    for i, item in enumerate(items):
+        seen.append((i, item))
+    return seen
+
+
+def test_build_factory_rewrites_enumerate_loop_to_use_track_enumerate():
+    ctx = _RecordingCtx()
+    transformed = build_factory(_process_enumerate)(ctx)
+
+    assert transformed(["a", "b"]) == [(0, "a"), (1, "b")]
+    assert ctx.tracked_enumerate == [(["a", "b"], "for i, item in enumerate(items):")]
+    assert ctx.tracked == []
+    assert ctx.advanced == 2
 
 
 def _no_loop(x):
