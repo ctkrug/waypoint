@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "waypoint"
-version = "0.1.0"
+version = "1.0.0"
 description = "One decorator that makes any Python loop resumable."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Charlie Krug" }]
 requires-python = ">=3.9"
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
