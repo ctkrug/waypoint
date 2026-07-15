@@ -1,5 +1,7 @@
 # waypoint
 
+[![CI](https://github.com/ctkrug/waypoint/actions/workflows/ci.yml/badge.svg)](https://github.com/ctkrug/waypoint/actions/workflows/ci.yml)
+
 One decorator that makes any Python loop resumable. Kill the process
 mid-run, rerun the script, and it picks up exactly where it left off.
 
