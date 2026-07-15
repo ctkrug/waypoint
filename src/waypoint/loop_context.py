@@ -46,6 +46,17 @@ class _LoopContext:
         self._index = start
         return iter(sequence[start:])
 
+    def track_enumerate(self, iterable: Any, loop_source: str) -> Iterator[Any]:
+        """Like :meth:`track`, but for ``for i, item in enumerate(iterable):``.
+
+        Returns ``(index, item)`` pairs where ``index`` reflects the item's
+        true position in the original sequence, even after a resume.
+        """
+        sequence = _coerce_sequence(iterable, loop_source)
+        start = min(self._resume_index, len(sequence))
+        self._index = start
+        return enumerate(iter(sequence[start:]), start=start)
+
     def advance(self) -> None:
         """Record that one more iteration completed successfully."""
         self._index += 1
