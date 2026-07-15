@@ -82,6 +82,23 @@ def test_track_enumerate_yields_index_item_pairs_on_fresh_checkpoint(tmp_path):
     ]
 
 
+def test_advance_invokes_on_progress_with_index_and_total(tmp_path):
+    calls = []
+    ctx = _LoopContext(tmp_path / "job.json", on_progress=lambda i, total: calls.append((i, total)))
+
+    for _ in ctx.track([10, 20, 30], "for x in y:"):
+        ctx.advance()
+
+    assert calls == [(1, 3), (2, 3), (3, 3)]
+
+
+def test_advance_without_on_progress_does_not_raise(tmp_path):
+    ctx = _LoopContext(tmp_path / "job.json")
+
+    for _ in ctx.track([1, 2], "for x in y:"):
+        ctx.advance()  # no callback configured -- must be a silent no-op
+
+
 def test_track_enumerate_resumes_with_true_original_index(tmp_path):
     path = tmp_path / "job.json"
     ctx = _LoopContext(path)
