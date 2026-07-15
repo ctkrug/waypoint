@@ -26,6 +26,30 @@ def test_status_lists_key_index_and_mtime_per_checkpoint(tmp_path):
     assert "job-b" in lines[1] and "index=12" in lines[1]
 
 
+def test_status_does_not_crash_on_corrupt_json_checkpoint(tmp_path):
+    write_checkpoint(tmp_path / "good.json", {"index": 5})
+    (tmp_path / "bad.json").write_text("{not valid json", encoding="utf-8")
+
+    out = io.StringIO()
+    code = cli.status(tmp_path, out)
+    lines = out.getvalue().splitlines()
+
+    assert code == 0
+    assert len(lines) == 2
+    assert any("good" in line and "index=5" in line for line in lines)
+    assert any("bad" in line for line in lines)
+
+
+def test_status_does_not_crash_on_non_object_json_checkpoint(tmp_path):
+    (tmp_path / "weird.json").write_text("42", encoding="utf-8")
+
+    out = io.StringIO()
+    code = cli.status(tmp_path, out)
+
+    assert code == 0
+    assert "weird" in out.getvalue()
+
+
 def test_status_ignores_non_json_files(tmp_path):
     write_checkpoint(tmp_path / "job.json", {"index": 1})
     (tmp_path / "notes.txt").write_text("not a checkpoint")
