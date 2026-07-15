@@ -79,7 +79,7 @@ moment — they land first, before any ergonomics or polish work.
 
 ## Epic 4 — Packaging, docs & release readiness
 
-- [ ] **4.1 Full README with quickstart and Ctrl-C demo**
+- [x] **4.1 Full README with quickstart and Ctrl-C demo**
   - The README quickstart snippet runs verbatim end-to-end and
     produces the documented resume behavior when copy-pasted.
   - The README prominently documents the "must be a concrete
