@@ -27,7 +27,7 @@ Homepage = "https://github.com/ctkrug/waypoint"
 Issues = "https://github.com/ctkrug/waypoint/issues"
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "ruff>=0.4", "mypy>=1.8"]
+dev = ["pytest>=7", "ruff>=0.4", "mypy>=1.8", "hypothesis>=6"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
