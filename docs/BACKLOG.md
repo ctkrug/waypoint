@@ -48,7 +48,7 @@ moment — they land first, before any ergonomics or polish work.
   - Two decorated functions with distinct explicit keys never collide,
     even with identical source.
 
-- [ ] **2.3 CLI helper: `python -m waypoint status|clear`**
+- [x] **2.3 CLI helper: `python -m waypoint status|clear`**
   - `python -m waypoint status` lists every checkpoint file under
     `.waypoint/` with function name, progress index, and
     last-modified time.
