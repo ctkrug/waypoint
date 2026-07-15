@@ -56,19 +56,30 @@ src/waypoint/
    transformed function through it.
 
 3. **Inside the loop** (`loop_context._LoopContext`):
+   - On construction, `_load_resume_index` reads and validates the
+     checkpoint file: missing file → index 0; invalid JSON, a non-object
+     payload, or a missing/negative/non-integer `index` → a clear
+     `NotResumableError` rather than resuming from a guessed value. A
+     corrupt or hand-edited checkpoint fails loudly instead of silently
+     replaying the wrong slice.
    - `track(iterable, loop_source)` validates the iterable is a
      `list`/`tuple`/`range`/`Seq` (raising `NotResumableError` naming the
-     loop otherwise), slices it from the last persisted index, and
-     returns an iterator over the remainder. `track_enumerate(...)` does
-     the same but returns `(index, item)` pairs where `index` is the
-     item's true position in the original sequence, so resuming doesn't
-     reset it to 0.
+     loop otherwise), then returns a generator that walks the sequence
+     from the last persisted index, recording each item's true position
+     in `self._pending_position` as it's yielded. `track_enumerate(...)`
+     does the same but yields `(position, item)` pairs so the loop's own
+     `i` reflects the item's true original index, even after a resume.
    - `advance()` runs after each iteration's body completes — not on
-     exception, not on `continue` — persisting `{"index": n}` via
-     `storage.write_checkpoint` (temp file + `os.replace`, so a hard kill
-     mid-write never corrupts the checkpoint), then invokes the
-     decorator's optional `on_progress(index, total)` callback if one
-     was passed to `@checkpoint`.
+     exception, not on `continue`. It only persists `{"index": n}` when
+     `_pending_position` is exactly the next position after the last
+     confirmed `_index` (i.e. no `continue` skipped an earlier item this
+     run); otherwise it's a no-op, since recording a later item as done
+     would falsely imply the skipped one finished too. When it does
+     persist, it goes through `storage.write_checkpoint` (temp file +
+     `os.replace`, so a hard kill mid-write never corrupts the
+     checkpoint), then invokes the decorator's optional
+     `on_progress(index, total)` callback if one was passed to
+     `@checkpoint`.
    - If the call returns normally, `wrapper` calls `ctx.cleanup()`,
      deleting the checkpoint file so the next call starts fresh.
 
@@ -77,11 +88,13 @@ src/waypoint/
    checkpoint directory with its stored index and mtime;
    `python -m waypoint clear <key> [--dir X]` deletes one. Both read the
    same `storage.py` functions the decorator uses, so they never drift
-   from the on-disk format.
+   from the on-disk format. `status` treats a corrupt or non-object
+   checkpoint file as `index=?` rather than crashing the whole listing —
+   it's a diagnostic tool, so one bad file shouldn't hide the rest.
 
 This is why a killed run's in-flight item gets *retried* on rerun rather
 than skipped: `advance()` only ever moves the index past an iteration
-that fully completed.
+that fully completed, and never past a gap left by `continue`.
 
 ## Known v1 constraints (by design, not oversight)
 
@@ -90,12 +103,18 @@ that fully completed.
 - Loop target must be a single name or an `enumerate(...)` pair; other
   tuple unpacking (`for k, v in d.items():`) isn't supported.
 - `continue` inside the loop body skips the appended `advance()` call
-  too, so that item is retried on the next run.
+  too, so that item is retried on the next run — and since progress is
+  one linear index, nothing *after* it in the same run gets checkpointed
+  either, so it's retried too (see `loop_context.py`'s gap check).
 - The decorated function must have real, `inspect.getsource`-readable
   source (a file on disk, not `exec`/REPL-defined).
 - Mutating a rebound (`nonlocal`) closure variable inside the loop body
   doesn't propagate back to the caller's scope, since a fresh cell is
   created on each call.
+- No cross-call locking: two concurrent calls to the same checkpointed
+  function with the same effective arguments will race on the same
+  checkpoint file. The on-disk file itself never corrupts (atomic
+  replace), but the two calls' progress isn't coordinated.
 
 ## Running it
 
