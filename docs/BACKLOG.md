@@ -91,7 +91,7 @@ moment — they land first, before any ergonomics or polish work.
   - `pip show waypoint` reports the correct version, license, and
     description after install.
 
-- [ ] **4.3 CI matrix across supported Python versions**
+- [x] **4.3 CI matrix across supported Python versions**
   - CI passes on Python 3.9-3.12 via the GitHub Actions matrix.
   - The README CI badge reflects the current status of the `main`
     branch workflow.
