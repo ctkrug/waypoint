@@ -201,6 +201,85 @@ def test_enumerate_loop_resumes_with_true_original_index(tmp_path, monkeypatch):
     assert processed == [(0, "a"), (1, "b"), (2, "c"), (3, "d")]
 
 
+def test_outer_loop_resumes_while_inner_loop_is_left_untouched(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    processed = []
+    attempt = {"count": 0}
+
+    @checkpoint
+    def process(rows):
+        for row in rows:
+            if row == [3, 3] and attempt["count"] == 0:
+                attempt["count"] += 1
+                raise _Interrupted()
+            for cell in row:
+                processed.append(cell)
+
+    rows = [[1, 1], [2, 2], [3, 3], [4, 4]]
+
+    with pytest.raises(_Interrupted):
+        process(rows)
+
+    assert processed == [1, 1, 2, 2]
+
+    process(rows)
+
+    # The outer (tracked) loop resumes at row [3, 3] instead of redoing
+    # rows 0-1; the untracked inner loop still runs in full for every row
+    # it does reach.
+    assert processed == [1, 1, 2, 2, 3, 3, 4, 4]
+
+
+def test_break_exits_the_loop_and_still_cleans_up_the_checkpoint(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    @checkpoint
+    def process(items):
+        seen = []
+        for item in items:
+            if item == 3:
+                break
+            seen.append(item)
+        return seen
+
+    result = process([1, 2, 3, 4, 5])
+
+    assert result == [1, 2]
+    # A break is a deliberate, successful exit -- the function returned
+    # normally, so the checkpoint is cleared just like any other
+    # successful completion.
+    checkpoint_dir = tmp_path / DEFAULT_CHECKPOINT_DIR
+    assert list(checkpoint_dir.glob("*.json")) == []
+
+
+def test_resuming_a_checkpoint_already_at_full_completion_self_heals(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    processed = []
+
+    @checkpoint
+    def process(items):
+        for item in items:
+            processed.append(item)
+
+    items = [1, 2, 3]
+    checkpoint_dir = tmp_path / DEFAULT_CHECKPOINT_DIR
+    checkpoint_dir.mkdir()
+
+    from waypoint.core import _checkpoint_key
+    from waypoint.storage import checkpoint_path, write_checkpoint
+
+    key = _checkpoint_key(process.__wrapped__, (items,), {})
+    write_checkpoint(checkpoint_path(key, checkpoint_dir), {"index": len(items)})
+
+    # Simulates a process killed right after the last advance() but
+    # before cleanup() ran: the leftover checkpoint says every item is
+    # already done, so the rerun does nothing and then cleans up.
+    process(items)
+
+    assert processed == []
+    assert list(checkpoint_dir.glob("*.json")) == []
+
+
 def test_seq_wrapped_generator_becomes_resumable(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     processed = []
