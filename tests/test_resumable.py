@@ -176,6 +176,31 @@ def test_generator_loop_raises_not_resumable_error(tmp_path, monkeypatch):
         process(x for x in range(5))
 
 
+def test_enumerate_loop_resumes_with_true_original_index(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    processed = []
+    attempt = {"count": 0}
+
+    @checkpoint
+    def process(items):
+        for i, item in enumerate(items):
+            if item == "c" and attempt["count"] == 0:
+                attempt["count"] += 1
+                raise _Interrupted()
+            processed.append((i, item))
+
+    items = ["a", "b", "c", "d"]
+
+    with pytest.raises(_Interrupted):
+        process(items)
+
+    assert processed == [(0, "a"), (1, "b")]
+
+    process(items)
+
+    assert processed == [(0, "a"), (1, "b"), (2, "c"), (3, "d")]
+
+
 def test_seq_wrapped_generator_becomes_resumable(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     processed = []
