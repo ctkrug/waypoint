@@ -2,7 +2,7 @@
 
 import pytest
 
-from waypoint import checkpoint
+from waypoint import NotResumableError, checkpoint
 from waypoint.storage import DEFAULT_CHECKPOINT_DIR
 
 
@@ -136,3 +136,41 @@ def test_independently_decorated_functions_do_not_collide(tmp_path, monkeypatch)
 
     task_a([0, 1, 2])
     assert a_seen == [0, 1, 2]
+
+
+def test_loop_body_calling_a_closed_over_helper_resumes_correctly(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    log = []
+    attempt = {"count": 0}
+
+    def slow_call(item):
+        if item == 2 and attempt["count"] == 0:
+            attempt["count"] += 1
+            raise _Interrupted()
+        log.append(item * 10)
+
+    @checkpoint
+    def process(items):
+        for item in items:
+            slow_call(item)
+
+    items = [1, 2, 3]
+
+    with pytest.raises(_Interrupted):
+        process(items)
+    assert log == [10]
+
+    process(items)
+    assert log == [10, 20, 30]
+
+
+def test_generator_loop_raises_not_resumable_error(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    @checkpoint
+    def process(items):
+        for item in items:
+            pass
+
+    with pytest.raises(NotResumableError):
+        process(x for x in range(5))
