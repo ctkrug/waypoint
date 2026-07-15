@@ -1,8 +1,7 @@
 """Demo: kill this script with Ctrl-C partway through, then rerun it.
 
-Once @checkpoint's resumable engine lands (docs/BACKLOG.md, Epic 1),
-rerunning will skip the items already processed instead of starting
-over. For now this demonstrates the intended call shape.
+Rerunning skips the items already processed and resumes right where
+the previous run stopped -- no manual save/restore code required.
 """
 
 import time
