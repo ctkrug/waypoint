@@ -203,6 +203,40 @@ def test_enumerate_loop_resumes_with_true_original_index(tmp_path, monkeypatch):
     assert processed == [(0, "a"), (1, "b"), (2, "c"), (3, "d")]
 
 
+def test_continue_gap_safety_also_applies_to_enumerate_loops(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    processed = []
+    attempt_2 = {"count": 0}
+    attempt_4 = {"count": 0}
+
+    @checkpoint
+    def process(items):
+        for i, item in enumerate(items):
+            if item == 2:
+                if attempt_2["count"] == 0:
+                    attempt_2["count"] += 1
+                    raise _Interrupted()
+                continue
+            if item == 4 and attempt_4["count"] == 0:
+                attempt_4["count"] += 1
+                raise _Interrupted()
+            processed.append((i, item))
+
+    items = [1, 2, 3, 4, 5]
+
+    with pytest.raises(_Interrupted):
+        process(items)
+    with pytest.raises(_Interrupted):
+        process(items)
+
+    checkpoint_dir = tmp_path / DEFAULT_CHECKPOINT_DIR
+    checkpoint_file = next(checkpoint_dir.glob("*.json"))
+    # track_enumerate() shares the same advance() gap check as track() --
+    # this pins that the fix isn't accidentally specific to the bare-loop
+    # code path.
+    assert json.loads(checkpoint_file.read_text()) == {"index": 1}
+
+
 def test_outer_loop_resumes_while_inner_loop_is_left_untouched(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     processed = []
