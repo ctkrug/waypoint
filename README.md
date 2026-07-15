@@ -105,8 +105,12 @@ def process_all(items):
         do_something_slow(item)
 ```
 
-`on_progress(index, total)` fires after each completed iteration.
-Omitting it costs nothing extra.
+`on_progress(index, total)` fires after each iteration that advances
+the checkpoint. Omitting it costs nothing extra. Note this is tied to
+checkpoint progress, not just "the loop body ran": an item skipped past
+by `continue` after an earlier `continue` in the same run won't fire
+`on_progress` either, for the same reason it isn't checkpointed (see
+"Known v1 limitations" below).
 
 ### CLI
 

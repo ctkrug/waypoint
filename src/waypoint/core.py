@@ -53,7 +53,9 @@ def checkpoint(
     handles) or when several distinct call shapes should share one
     checkpoint namespace.
     ``on_progress``, if given, is called as ``on_progress(index, total)``
-    after each completed iteration.
+    after each iteration that advances the checkpoint -- see
+    :meth:`_LoopContext.advance` for the one case (a `continue` earlier
+    in the same run) where a completed iteration doesn't advance it.
     """
     if func is None:
         return functools.partial(checkpoint, dir=dir, key=key, on_progress=on_progress)
