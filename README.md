@@ -29,29 +29,75 @@ it clutters the actual logic.
 `waypoint` does this for you. Decorate the function, keep writing
 plain Python.
 
-## How it works (v1 design)
+## How it works
 
-- The decorated function's loop must iterate over a concrete,
-  indexable sequence — a `list`, `tuple`, `range`, or anything wrapped
-  in `waypoint.seq(...)`. (Plain generators can't be resumed without
-  re-running them, so `waypoint` raises a clear error instead of
-  guessing.)
-- Progress is persisted to a small JSON file under `.waypoint/`,
-  keyed by the function and its call arguments, written atomically so
-  a hard kill never corrupts it.
-- On a fresh call, `waypoint` checks for an existing checkpoint for
-  that exact call and, if found, transparently resumes from the
-  recorded index.
-- On successful completion, the checkpoint is deleted — the next run
-  starts clean.
+- `@checkpoint` parses the decorated function's source once, finds its
+  single top-level `for item in <sequence>:` loop, and rewrites the
+  iterated expression to resume from a persisted index — the loop
+  body itself is untouched.
+- The loop must iterate over a concrete, sliceable sequence — a
+  `list`, `tuple`, `range`, or anything wrapped in `waypoint.seq(...)`.
+  Plain generators can't be resumed without re-running them from
+  scratch, so decorating a loop over one raises `NotResumableError`
+  with an actionable message instead of silently doing the wrong
+  thing.
+- Progress is persisted to a small JSON file under `.waypoint/` (atomic
+  write-then-replace, so a hard kill never corrupts it), keyed by the
+  function's qualified name plus a hash of its call arguments — calling
+  the same function with different arguments never shares progress.
+- The index only advances after an iteration *completes*. If the loop
+  body raises partway through an item, that item is retried on the
+  next run rather than skipped — `waypoint` guarantees you never redo
+  completed work, not that side effects run exactly once. Make loop
+  bodies idempotent if that matters for your use case.
+- On successful completion (loop exhausted, function returns without
+  raising), the checkpoint is deleted — the next run starts clean.
+
+### Resuming a non-list iterable
+
+```python
+from waypoint import checkpoint, seq
+
+@checkpoint
+def process_all(items):
+    for item in items:
+        do_something_slow(item)
+
+process_all(seq(fetch_records_from_api()))  # materializes once, then resumes
+```
+
+### Configuration
+
+```python
+@checkpoint(dir=".state", key="job-42")
+def process_all(items):
+    ...
+```
+
+`dir` overrides where checkpoints are written (default `.waypoint/`).
+`key` overrides the derived checkpoint key with a fixed name — useful
+when call arguments aren't hashable/reprable in a stable way, or when
+you want several differently-shaped calls to share one checkpoint.
+
+### Known v1 limitations
+
+- Only the function's first top-level `for` loop is made resumable;
+  loops nested inside `if`/`try`/`with`, or a second loop later in the
+  function, are left alone.
+- The loop target must be a single name (`for item in ...:`) — tuple
+  targets like `for i, item in enumerate(...):` aren't supported yet.
+- A loop body that `continue`s past the tracked item won't advance the
+  checkpoint for that item, so it's retried on the next run.
+- The decorated function needs real source available (`inspect.getsource`)
+  — functions defined dynamically via `exec`/the REPL aren't supported.
 
 See [`docs/VISION.md`](docs/VISION.md) for the full design and
 [`docs/BACKLOG.md`](docs/BACKLOG.md) for what's built vs. planned.
 
 ## Status
 
-Early scaffold — the decorator above is the target API; the resumable
-engine itself is being built (see the backlog). Not yet on PyPI.
+The core resumable-loop engine is implemented and tested end-to-end.
+Not yet on PyPI.
 
 ## Install (once published)
 
