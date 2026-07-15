@@ -84,8 +84,9 @@ you want several differently-shaped calls to share one checkpoint.
 - Only the function's first top-level `for` loop is made resumable;
   loops nested inside `if`/`try`/`with`, or a second loop later in the
   function, are left alone.
-- The loop target must be a single name (`for item in ...:`) — tuple
-  targets like `for i, item in enumerate(...):` aren't supported yet.
+- The loop target must be a single name (`for item in ...:`) or an
+  `enumerate(...)` pair (`for i, item in enumerate(...):`) — other
+  unpacking targets aren't supported.
 - A loop body that `continue`s past the tracked item won't advance the
   checkpoint for that item, so it's retried on the next run.
 - The decorated function needs real source available (`inspect.getsource`)
