@@ -26,6 +26,31 @@ def test_checkpoint_preserves_metadata():
     assert example.__doc__ == "Docstring."
 
 
+def test_checkpoint_on_progress_reports_index_and_total(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    calls = []
+
+    @checkpoint(on_progress=lambda index, total: calls.append((index, total)))
+    def process(items):
+        for item in items:
+            pass
+
+    process([10, 20, 30])
+
+    assert calls == [(1, 3), (2, 3), (3, 3)]
+
+
+def test_checkpoint_without_on_progress_has_no_callback_side_effects(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    @checkpoint
+    def process(items):
+        for item in items:
+            pass
+
+    process([1, 2, 3])  # no on_progress configured -- must not raise
+
+
 def _func():
     pass
 
