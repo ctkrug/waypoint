@@ -6,7 +6,7 @@ moment — they land first, before any ergonomics or polish work.
 
 ## Epic 1 — Core resumable-loop engine
 
-- [ ] **1.1 (WOW) Implement `@checkpoint` with AST-based iterable rewrite and disk-backed resume**
+- [x] **1.1 (WOW) Implement `@checkpoint` with AST-based iterable rewrite and disk-backed resume**
   - Given a script with `@checkpoint` over `for item in range(1000): slow(item)`,
     killing the process at item 500 and rerunning it skips items 0-499
     and resumes at item 500.
@@ -14,20 +14,20 @@ moment — they land first, before any ergonomics or polish work.
     checkpoint file for that call is deleted, so a fresh rerun starts
     at 0.
 
-- [ ] **1.2 Checkpoint key derivation from function identity + call arguments**
+- [x] **1.2 Checkpoint key derivation from function identity + call arguments**
   - Calling the same decorated function with different arguments
     produces distinct checkpoint files (no cross-contamination).
   - Calling with identical arguments after an interruption reuses the
     same checkpoint file and resumes it.
 
-- [ ] **1.3 Atomic, corruption-safe checkpoint writes**
+- [x] **1.3 Atomic, corruption-safe checkpoint writes**
   - Killing the process (`SIGKILL`) during a checkpoint write never
     leaves a corrupted/partial checkpoint file that fails to parse on
     the next run.
   - Checkpoint writes use write-to-temp + `os.replace` so a reader
     never observes a half-written file.
 
-- [ ] **1.4 Clear failure mode for non-resumable iterables**
+- [x] **1.4 Clear failure mode for non-resumable iterables**
   - Decorating a loop over a plain generator raises a descriptive
     `NotResumableError` at call time rather than silently failing to
     resume.
