@@ -18,6 +18,18 @@ Hit Ctrl-C at item 4,000 of 10,000. Rerun the script. `waypoint` skips
 the 4,000 already-processed items and resumes at 4,001 — no manual
 save/restore code, no external job queue, no config.
 
+### Try it yourself
+
+```
+git clone https://github.com/ctkrug/waypoint.git
+cd waypoint
+pip install -e .
+python examples/slow_loop.py
+# hit Ctrl-C partway through...
+python examples/slow_loop.py
+# ...and it resumes right after the last completed item.
+```
+
 ## Why
 
 Long-running scripts get killed: Ctrl-C, an OOM, a preempted spot
