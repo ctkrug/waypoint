@@ -6,16 +6,16 @@ Epic 1 of docs/BACKLOG.md.
 """
 
 import functools
-from typing import Callable, TypeVar
+from typing import Any, Callable, TypeVar, cast
 
-F = TypeVar("F", bound=Callable)
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 def checkpoint(func: F) -> F:
     """Mark a function's loop as resumable (placeholder implementation)."""
 
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         return func(*args, **kwargs)
 
-    return wrapper
+    return cast(F, wrapper)
