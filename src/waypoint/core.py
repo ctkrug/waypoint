@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, Union, cast
 
 from . import storage
 from .ast_transform import build_factory
-from .loop_context import _LoopContext
+from .loop_context import ProgressCallback, _LoopContext
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -37,6 +37,7 @@ def checkpoint(
     *,
     dir: Optional[Union[str, Path]] = None,
     key: Optional[str] = None,
+    on_progress: Optional[ProgressCallback] = None,
 ) -> Any:
     """Make a function's single top-level for-loop resumable.
 
@@ -51,9 +52,11 @@ def checkpoint(
     when call arguments aren't suitable for hashing (e.g. open file
     handles) or when several distinct call shapes should share one
     checkpoint namespace.
+    ``on_progress``, if given, is called as ``on_progress(index, total)``
+    after each completed iteration.
     """
     if func is None:
-        return functools.partial(checkpoint, dir=dir, key=key)
+        return functools.partial(checkpoint, dir=dir, key=key, on_progress=on_progress)
 
     factory = build_factory(func)
     directory = Path(dir) if dir is not None else storage.DEFAULT_CHECKPOINT_DIR
@@ -62,7 +65,7 @@ def checkpoint(
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         checkpoint_key = key if key is not None else _checkpoint_key(func, args, kwargs)
         path = storage.checkpoint_path(checkpoint_key, directory)
-        ctx = _LoopContext(path)
+        ctx = _LoopContext(path, on_progress=on_progress)
         transformed = factory(ctx)
         result = transformed(*args, **kwargs)
         ctx.cleanup()
