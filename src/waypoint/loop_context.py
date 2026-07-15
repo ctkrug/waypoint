@@ -6,6 +6,7 @@ sliceable sequence, resumes from the last persisted index, and persists a
 new index after each completed iteration.
 """
 
+import json
 from pathlib import Path
 from typing import Any, Callable, Iterator, Optional, Sequence, Union
 
@@ -15,6 +16,41 @@ from .sequence import Seq
 
 Resumable = Union[Sequence[Any], Seq]
 ProgressCallback = Callable[[int, int], None]
+
+
+def _load_resume_index(path: Path) -> int:
+    """Read and validate the resume index from ``path``.
+
+    A checkpoint file can be hand-edited, truncated, or written by an
+    incompatible version, so its shape can't be trusted blindly: silently
+    coercing a bad value (e.g. treating a negative index as "resume from
+    here") could replay the wrong slice of the sequence without any sign
+    something went wrong. Any of that raises a clear, actionable error
+    instead -- consistent with how an unresumable loop shape fails loudly
+    rather than resuming incorrectly.
+    """
+    try:
+        data = storage.read_checkpoint(path)
+    except json.JSONDecodeError as exc:
+        raise NotResumableError(
+            f"Checkpoint file '{path}' is not valid JSON ({exc}). It may "
+            "have been hand-edited or corrupted. Delete it (or run "
+            "'python -m waypoint clear <key>') to start that job fresh."
+        ) from exc
+
+    if data is None:
+        return 0
+
+    index = data.get("index") if isinstance(data, dict) else None
+    if not isinstance(index, int) or isinstance(index, bool) or index < 0:
+        raise NotResumableError(
+            f"Checkpoint file '{path}' has an unexpected format (expected a "
+            "JSON object with a non-negative integer 'index'). It may have "
+            "been hand-edited or written by an incompatible waypoint "
+            "version. Delete it (or run 'python -m waypoint clear <key>') "
+            "to start that job fresh."
+        )
+    return index
 
 
 def _coerce_sequence(iterable: Any, loop_source: str) -> Sequence[Any]:
@@ -37,8 +73,7 @@ class _LoopContext:
         self._path = path
         self._on_progress = on_progress
         self._total = 0
-        data = storage.read_checkpoint(path)
-        self._resume_index = data["index"] if data else 0
+        self._resume_index = _load_resume_index(path)
         self._index = self._resume_index
 
     def track(self, iterable: Any, loop_source: str) -> Iterator[Any]:
