@@ -85,7 +85,7 @@ moment — they land first, before any ergonomics or polish work.
   - The README prominently documents the "must be a concrete
     sequence" constraint rather than burying it.
 
-- [ ] **4.2 Packaging polish for PyPI**
+- [x] **4.2 Packaging polish for PyPI**
   - `python -m build` produces a valid sdist and wheel that install
     cleanly into a fresh virtualenv via `pip install`.
   - `pip show waypoint` reports the correct version, license, and
