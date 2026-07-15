@@ -56,6 +56,27 @@ def test_distinct_explicit_keys_never_collide(tmp_path):
     assert seen_b == [3, 4]
 
 
+def test_unicode_and_emoji_key_round_trips(tmp_path):
+    processed = []
+    attempt = {"count": 0}
+
+    @checkpoint(dir=tmp_path, key="jöb-🚀-42")
+    def process(items):
+        for item in items:
+            if item == 1 and attempt["count"] == 0:
+                attempt["count"] += 1
+                raise _Interrupted()
+            processed.append(item)
+
+    with pytest.raises(_Interrupted):
+        process([0, 1, 2])
+
+    assert (tmp_path / "jöb-🚀-42.json").exists()
+
+    process([0, 1, 2])
+    assert processed == [0, 1, 2]
+
+
 def test_same_explicit_key_resumes_across_different_call_shapes(tmp_path):
     processed = []
     attempt = {"count": 0}
