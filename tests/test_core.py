@@ -1,3 +1,7 @@
+import functools
+
+import pytest
+
 from waypoint import checkpoint
 from waypoint.core import _checkpoint_key
 
@@ -91,3 +95,50 @@ def test_checkpoint_key_differs_for_different_functions():
 def test_checkpoint_key_includes_qualified_function_name():
     key = _checkpoint_key(_func, (), {})
     assert key.startswith(f"{_func.__module__}.{_func.__qualname__}-")
+
+
+def test_checkpoint_composes_with_another_decorator_above_it(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    def logged(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    @logged
+    @checkpoint
+    def process(items):
+        seen = []
+        for item in items:
+            seen.append(item)
+        return seen
+
+    assert process([1, 2, 3]) == [1, 2, 3]
+
+
+def test_checkpoint_on_a_class_method_resumes_correctly(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    class Worker:
+        def __init__(self):
+            self.log = []
+            self.attempted = False
+
+        @checkpoint
+        def process(self, items):
+            for item in items:
+                if item == 2 and not self.attempted:
+                    self.attempted = True
+                    raise RuntimeError("boom")
+                self.log.append(item)
+            return self.log
+
+    worker = Worker()
+    with pytest.raises(RuntimeError):
+        worker.process([1, 2, 3])
+    assert worker.log == [1]
+
+    worker.process([1, 2, 3])
+    assert worker.log == [1, 2, 3]
