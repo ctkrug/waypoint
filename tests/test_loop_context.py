@@ -128,6 +128,14 @@ def test_interleaved_contexts_on_the_same_path_never_corrupt_the_file(tmp_path):
         assert isinstance(data["index"], int)
 
 
+def test_checkpoint_zero_index_is_valid_and_resumes_from_start(tmp_path):
+    path = tmp_path / "job.json"
+    write_checkpoint(path, {"index": 0})
+
+    ctx = _LoopContext(path)
+    assert list(ctx.track([1, 2, 3], "for x in y:")) == [1, 2, 3]
+
+
 def test_invalid_json_checkpoint_raises_actionable_error(tmp_path):
     path = tmp_path / "job.json"
     path.write_text("{not valid json", encoding="utf-8")
