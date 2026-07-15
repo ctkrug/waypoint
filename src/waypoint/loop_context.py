@@ -8,7 +8,7 @@ new index after each completed iteration.
 
 import json
 from pathlib import Path
-from typing import Any, Callable, Iterator, Optional, Sequence, Union
+from typing import Any, Callable, Iterator, Optional, Sequence, Tuple, Union
 
 from . import storage
 from .exceptions import NotResumableError
@@ -80,11 +80,7 @@ class _LoopContext:
     def track(self, iterable: Any, loop_source: str) -> Iterator[Any]:
         """Validate ``iterable`` and return an iterator resuming past
         already-completed items."""
-        sequence = _coerce_sequence(iterable, loop_source)
-        start = min(self._resume_index, len(sequence))
-        self._index = start
-        self._pending_position = start
-        self._total = len(sequence)
+        sequence, start = self._begin(iterable, loop_source)
         return self._iter_from(sequence, start)
 
     def track_enumerate(self, iterable: Any, loop_source: str) -> Iterator[Any]:
@@ -93,12 +89,22 @@ class _LoopContext:
         Returns ``(index, item)`` pairs where ``index`` reflects the item's
         true position in the original sequence, even after a resume.
         """
+        sequence, start = self._begin(iterable, loop_source)
+        return self._enumerate_from(sequence, start)
+
+    def _begin(self, iterable: Any, loop_source: str) -> Tuple[Sequence[Any], int]:
+        """Validate ``iterable`` and reset progress to the resume point.
+
+        Returns the concrete sequence and the position to start yielding
+        from -- clamped to the sequence length so a checkpoint left over
+        from a longer earlier run can never index past the end.
+        """
         sequence = _coerce_sequence(iterable, loop_source)
         start = min(self._resume_index, len(sequence))
         self._index = start
         self._pending_position = start
         self._total = len(sequence)
-        return self._enumerate_from(sequence, start)
+        return sequence, start
 
     def _iter_from(self, sequence: Sequence[Any], start: int) -> Iterator[Any]:
         for position in range(start, len(sequence)):
