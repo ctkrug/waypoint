@@ -57,6 +57,11 @@ plain Python.
   write-then-replace, so a hard kill never corrupts it), keyed by the
   function's qualified name plus a hash of its call arguments — calling
   the same function with different arguments never shares progress.
+  That write includes an `fsync` on every iteration, trading some
+  per-item overhead for durability — fine for loop bodies doing real
+  work (API calls, file I/O), but if your body is sub-millisecond
+  pure-Python, the checkpoint write will dominate. Batch such loops
+  into chunks before decorating if that matters.
 - The index only advances after an iteration *completes*. If the loop
   body raises partway through an item, that item is retried on the
   next run rather than skipped — `waypoint` guarantees you never redo
@@ -120,9 +125,27 @@ python -m waypoint clear <key>       # delete one checkpoint, e.g. to force a fr
   `enumerate(...)` pair (`for i, item in enumerate(...):`) — other
   unpacking targets aren't supported.
 - A loop body that `continue`s past the tracked item won't advance the
-  checkpoint for that item, so it's retried on the next run.
+  checkpoint for that item, so it's retried on the next run. Because
+  progress is one linear index, the checkpoint also can't record any
+  *later* item in that same run as done without falsely implying the
+  skipped one finished too — so it doesn't: everything after the first
+  `continue` in a run is simply retried again next time, alongside the
+  skipped item itself. Nothing is ever silently dropped, but a
+  `continue`-heavy loop pays for that safety in redone work.
 - The decorated function needs real source available (`inspect.getsource`)
   — functions defined dynamically via `exec`/the REPL aren't supported.
+- Two calls to the same checkpointed function with the same effective
+  arguments must not run concurrently (multiple threads, or multiple
+  processes) — there's no cross-call locking, so they'd race on the same
+  checkpoint file. One process, one call per checkpoint key at a time.
+- The checkpoint key hashes `repr()` of the call arguments. That's
+  stable for plain data (lists, tuples, strings, numbers), but a `set`
+  or `frozenset` argument containing strings can repr in a different
+  order on every process run (Python's hash randomization), producing a
+  different key each time and silently defeating resume. Calling with
+  an implicit default (`f(items)`) vs. the same value passed explicitly
+  (`f(items, batch_size=10)`) also hashes differently, for the same
+  reason. Pass `key=` explicitly if your arguments hit either case.
 
 See [`docs/VISION.md`](docs/VISION.md) for the full design and
 [`docs/BACKLOG.md`](docs/BACKLOG.md) for what's built vs. planned.
