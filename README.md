@@ -91,6 +91,14 @@ def process_all(items):
 `on_progress(index, total)` fires after each completed iteration.
 Omitting it costs nothing extra.
 
+### CLI
+
+```
+python -m waypoint status            # list stored checkpoints
+python -m waypoint status --dir X    # ... under a non-default directory
+python -m waypoint clear <key>       # delete one checkpoint, e.g. to force a fresh run
+```
+
 ### Known v1 limitations
 
 - Only the function's first top-level `for` loop is made resumable;
