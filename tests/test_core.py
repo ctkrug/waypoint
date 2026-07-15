@@ -2,18 +2,25 @@ from waypoint import checkpoint
 from waypoint.core import _checkpoint_key
 
 
-def test_checkpoint_preserves_function_behavior():
-    @checkpoint
-    def add(a, b):
-        return a + b
+def test_checkpoint_preserves_function_behavior(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
 
-    assert add(2, 3) == 5
+    @checkpoint
+    def sum_all(items):
+        total = 0
+        for item in items:
+            total += item
+        return total
+
+    assert sum_all([1, 2, 3]) == 6
 
 
 def test_checkpoint_preserves_metadata():
     @checkpoint
     def example():
         """Docstring."""
+        for _ in []:
+            pass
 
     assert example.__name__ == "example"
     assert example.__doc__ == "Docstring."
