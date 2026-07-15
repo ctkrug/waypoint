@@ -4,7 +4,10 @@ All notable changes to this project are documented here.
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.0] - 2026-07-15
+
+First stable release: the resumable-loop engine and its documented
+constraints are locked in.
 
 ### Added
 
