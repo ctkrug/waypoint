@@ -2,6 +2,7 @@ import pytest
 
 from waypoint import NotResumableError, Seq
 from waypoint.loop_context import _LoopContext
+from waypoint.storage import write_checkpoint
 
 
 def test_track_iterates_all_items_on_fresh_checkpoint(tmp_path):
@@ -97,6 +98,54 @@ def test_advance_without_on_progress_does_not_raise(tmp_path):
 
     for _ in ctx.track([1, 2], "for x in y:"):
         ctx.advance()  # no callback configured -- must be a silent no-op
+
+
+def test_invalid_json_checkpoint_raises_actionable_error(tmp_path):
+    path = tmp_path / "job.json"
+    path.write_text("{not valid json", encoding="utf-8")
+
+    with pytest.raises(NotResumableError, match="not valid JSON"):
+        _LoopContext(path)
+
+
+def test_checkpoint_missing_index_key_raises_actionable_error(tmp_path):
+    path = tmp_path / "job.json"
+    write_checkpoint(path, {"unexpected": "shape"})
+
+    with pytest.raises(NotResumableError, match="unexpected format"):
+        _LoopContext(path)
+
+
+def test_checkpoint_non_dict_json_raises_actionable_error(tmp_path):
+    path = tmp_path / "job.json"
+    path.write_text("42", encoding="utf-8")
+
+    with pytest.raises(NotResumableError, match="unexpected format"):
+        _LoopContext(path)
+
+
+def test_checkpoint_negative_index_raises_instead_of_silently_replaying(tmp_path):
+    path = tmp_path / "job.json"
+    write_checkpoint(path, {"index": -5})
+
+    with pytest.raises(NotResumableError, match="unexpected format"):
+        _LoopContext(path)
+
+
+def test_checkpoint_string_index_raises_actionable_error(tmp_path):
+    path = tmp_path / "job.json"
+    write_checkpoint(path, {"index": "5"})
+
+    with pytest.raises(NotResumableError, match="unexpected format"):
+        _LoopContext(path)
+
+
+def test_checkpoint_null_index_raises_actionable_error(tmp_path):
+    path = tmp_path / "job.json"
+    write_checkpoint(path, {"index": None})
+
+    with pytest.raises(NotResumableError, match="unexpected format"):
+        _LoopContext(path)
 
 
 def test_track_enumerate_resumes_with_true_original_index(tmp_path):
