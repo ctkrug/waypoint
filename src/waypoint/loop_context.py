@@ -75,6 +75,7 @@ class _LoopContext:
         self._total = 0
         self._resume_index = _load_resume_index(path)
         self._index = self._resume_index
+        self._pending_position = self._resume_index
 
     def track(self, iterable: Any, loop_source: str) -> Iterator[Any]:
         """Validate ``iterable`` and return an iterator resuming past
@@ -82,8 +83,9 @@ class _LoopContext:
         sequence = _coerce_sequence(iterable, loop_source)
         start = min(self._resume_index, len(sequence))
         self._index = start
+        self._pending_position = start
         self._total = len(sequence)
-        return iter(sequence[start:])
+        return self._iter_from(sequence, start)
 
     def track_enumerate(self, iterable: Any, loop_source: str) -> Iterator[Any]:
         """Like :meth:`track`, but for ``for i, item in enumerate(iterable):``.
@@ -94,11 +96,32 @@ class _LoopContext:
         sequence = _coerce_sequence(iterable, loop_source)
         start = min(self._resume_index, len(sequence))
         self._index = start
+        self._pending_position = start
         self._total = len(sequence)
-        return enumerate(iter(sequence[start:]), start=start)
+        return self._enumerate_from(sequence, start)
+
+    def _iter_from(self, sequence: Sequence[Any], start: int) -> Iterator[Any]:
+        for position in range(start, len(sequence)):
+            self._pending_position = position
+            yield sequence[position]
+
+    def _enumerate_from(self, sequence: Sequence[Any], start: int) -> Iterator[Any]:
+        for position in range(start, len(sequence)):
+            self._pending_position = position
+            yield position, sequence[position]
 
     def advance(self) -> None:
-        """Record that one more iteration completed successfully."""
+        """Record that one more iteration completed successfully.
+
+        If a `continue` skipped the appended ``advance()`` for an earlier
+        item this run, ``_pending_position`` will be ahead of ``_index`` --
+        persisting this later item as done would silently imply the
+        skipped one completed too. In that case the checkpoint is left
+        exactly where it was: the skipped item (and everything after it)
+        is retried next run rather than one of them being lost forever.
+        """
+        if self._pending_position != self._index:
+            return
         self._index += 1
         storage.write_checkpoint(self._path, {"index": self._index})
         if self._on_progress is not None:
