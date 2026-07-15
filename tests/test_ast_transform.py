@@ -82,6 +82,31 @@ def test_build_factory_raises_for_unpacking_loop_target():
         build_factory(_tuple_target_loop)
 
 
+async def _async_process(items):
+    for item in items:
+        pass
+
+
+def test_build_factory_raises_for_async_function():
+    with pytest.raises(NotResumableError, match="expects to decorate a regular function"):
+        build_factory(_async_process)
+
+
+def test_build_factory_raises_for_lambda():
+    process = lambda items: [x for x in items]  # noqa: E731
+
+    with pytest.raises(NotResumableError, match="expects to decorate a regular function"):
+        build_factory(process)
+
+
+def test_build_factory_raises_for_dynamically_defined_function():
+    namespace = {}
+    exec("def dyn(items):\n for item in items:\n  pass", namespace)
+
+    with pytest.raises(NotResumableError, match="no accessible source"):
+        build_factory(namespace["dyn"])
+
+
 def _make_closure_over_helper():
     log = []
 
