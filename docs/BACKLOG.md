@@ -64,7 +64,7 @@ moment — they land first, before any ergonomics or polish work.
   - Existing bare-loop (`for item in items:`) tests continue to pass
     with no regression.
 
-- [ ] **3.2 Progress reporting hook**
+- [x] **3.2 Progress reporting hook**
   - `@checkpoint(on_progress=callback)` invokes
     `callback(index, total)` after each completed iteration.
   - Omitting `on_progress` has zero behavior change and zero added
