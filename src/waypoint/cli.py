@@ -2,6 +2,7 @@
 on-disk checkpoints without writing ad-hoc scripts against storage.py.
 """
 
+import json
 import time
 from pathlib import Path
 from typing import List, TextIO
@@ -24,8 +25,11 @@ def status(directory: Path, out: TextIO) -> int:
         return 0
 
     for path in checkpoints:
-        data = storage.read_checkpoint(path)
-        index = data.get("index", "?") if data else "?"
+        try:
+            data = storage.read_checkpoint(path)
+        except json.JSONDecodeError:
+            data = None
+        index = data.get("index", "?") if isinstance(data, dict) else "?"
         mtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(path.stat().st_mtime))
         print(f"{path.stem}\tindex={index}\t{mtime}", file=out)
     return 0
