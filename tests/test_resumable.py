@@ -2,7 +2,7 @@
 
 import pytest
 
-from waypoint import NotResumableError, checkpoint
+from waypoint import NotResumableError, checkpoint, seq
 from waypoint.storage import DEFAULT_CHECKPOINT_DIR
 
 
@@ -174,3 +174,29 @@ def test_generator_loop_raises_not_resumable_error(tmp_path, monkeypatch):
 
     with pytest.raises(NotResumableError):
         process(x for x in range(5))
+
+
+def test_seq_wrapped_generator_becomes_resumable(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    processed = []
+    attempt = {"count": 0}
+
+    @checkpoint
+    def process(items):
+        for item in items:
+            if item == 2 and attempt["count"] == 0:
+                attempt["count"] += 1
+                raise _Interrupted()
+            processed.append(item)
+
+    def source():
+        yield from range(5)
+
+    with pytest.raises(_Interrupted):
+        process(seq(source()))
+
+    assert processed == [0, 1]
+
+    process(seq(source()))
+
+    assert processed == [0, 1, 2, 3, 4]
