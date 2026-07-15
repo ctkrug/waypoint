@@ -100,6 +100,34 @@ def test_advance_without_on_progress_does_not_raise(tmp_path):
         ctx.advance()  # no callback configured -- must be a silent no-op
 
 
+def test_interleaved_contexts_on_the_same_path_never_corrupt_the_file(tmp_path):
+    # waypoint has no cross-call locking (documented: don't call the same
+    # checkpointed function concurrently with identical arguments). But
+    # even under that misuse, the on-disk file must always stay parseable
+    # -- atomic replace should hold regardless of which context "wins".
+    path = tmp_path / "job.json"
+    ctx_a = _LoopContext(path)
+    ctx_b = _LoopContext(path)
+    iter_a = ctx_a.track([0, 1, 2, 3, 4], "for x in y:")
+    iter_b = ctx_b.track([0, 1, 2, 3, 4], "for x in y:")
+
+    from waypoint.storage import read_checkpoint
+
+    turns = [
+        (iter_a, ctx_a),
+        (iter_b, ctx_b),
+        (iter_a, ctx_a),
+        (iter_b, ctx_b),
+        (iter_b, ctx_b),
+    ]
+    for it, ctx in turns:
+        next(it)
+        ctx.advance()
+        data = read_checkpoint(path)
+        assert isinstance(data, dict)
+        assert isinstance(data["index"], int)
+
+
 def test_invalid_json_checkpoint_raises_actionable_error(tmp_path):
     path = tmp_path / "job.json"
     path.write_text("{not valid json", encoding="utf-8")
