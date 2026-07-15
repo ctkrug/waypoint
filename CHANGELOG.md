@@ -17,4 +17,10 @@ and [Semantic Versioning](https://semver.org/).
 - `@checkpoint(dir=..., key=...)`: configurable checkpoint directory and
   explicit key namespace.
 - Atomic, corruption-safe checkpoint persistence under `.waypoint/`.
+- `enumerate()`-wrapped loops: `for i, item in enumerate(items):` resumes
+  with `i` reflecting the item's true original index.
+- `@checkpoint(on_progress=...)`: optional `callback(index, total)` fired
+  after each completed iteration.
+- `python -m waypoint status|clear`: list stored checkpoints (key,
+  progress index, last-modified time) or delete one by key.
 - Initial project scaffold: package layout, CI, and planning docs.
